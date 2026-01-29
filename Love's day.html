@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scratch App – Stable Architecture</title>
+
+<style>
+* { box-sizing:border-box; margin:0; padding:0 }
+
+body {
+  height:100vh;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  background:radial-gradient(circle at top, #2b1055, #000);
+  color:#fff;
+  font-family:sans-serif;
+}
+
+.banner {
+  width:360px;
+  height:520px;
+  background:rgba(0,0,0,0.6);
+  border-radius:20px;
+  padding:24px;
+  overflow:hidden;
+}
+
+.stage { display:none; height:100% }
+.stage.active { display:block }
+
+/* ===== STAGE 1 ===== */
+.pass-display {
+  font-size:28px;
+  letter-spacing:6px;
+  margin-bottom:24px;
+  text-align:center;
+}
+
+.keypad {
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:12px;
+}
+
+.keypad button {
+  padding:16px;
+  border:none;
+  border-radius:12px;
+  background:#ff1493;
+  color:#fff;
+  font-size:18px;
+}
+
+/* ===== STAGE 2 ===== */
+.typewriter {
+  white-space:pre-line;
+  line-height:1.6;
+  font-size:17px;
+}
+
+/* ===== STAGE 3 ===== */
+.scratch-frame {
+  position:relative;
+  width:100%;
+  height:100%;
+  border-radius:16px;
+  overflow:hidden;
+  background-size:cover;
+  background-position:center;
+  transition:background-image 0.8s ease;
+}
+
+canvas {
+  position:absolute;
+  inset:0;
+}
+</style>
+</head>
+
+<body>
+<div class="banner">
+
+<!-- STAGE 1 -->
+<section class="stage active" id="stage1">
+  <div class="pass-display" id="display"></div>
+  <div class="keypad" id="pad">
+    <button data-k="1">1</button><button data-k="2">2</button><button data-k="3">3</button>
+    <button data-k="4">4</button><button data-k="5">5</button><button data-k="6">6</button>
+    <button data-k="7">7</button><button data-k="8">8</button><button data-k="9">9</button>
+    <button data-d="1">⌫</button><button data-k="0">0</button><button id="ok">OK</button>
+  </div>
+</section>
+
+<!-- STAGE 2 -->
+<section class="stage" id="stage2">
+  <div class="typewriter" id="text"></div>
+</section>
+
+<!-- STAGE 3 -->
+<section class="stage" id="stage3">
+  <div class="scratch-frame" id="frame">
+    <canvas id="canvas"></canvas>
+  </div>
+</section>
+
+</div>
+
+<script>
+/* ===== CONFIG ===== */
+const PASS = "123456";
+const IMAGES = [
+  "https://i.pinimg.com/736x/5d/b5/2c/5db52cd8066973b2b2cd5b56607bed20.jpg",
+  "https://i.pinimg.com/736x/04/12/eb/0412eb5545c3b67eba6bc2deb950570a.jpg",
+  "https://i.pinimg.com/736x/8b/55/90/8b5590397696126802197092523cba5d.jpg"
+];
+const TEXT = `Gửi bbi
+              ngày 14/2, chúc bbi 1 ngày tốt lành`;
+
+/* STAGE CONTROL */
+function show(n){
+  document.querySelectorAll(".stage").forEach(s=>s.classList.remove("active"));
+  document.getElementById("stage"+n).classList.add("active");
+}
+
+/*STAGE 1*/
+let input=[];
+const display=document.getElementById("display");
+const pad=document.getElementById("pad");
+
+function render(){
+  display.textContent="●".repeat(input.length)+"○".repeat(PASS.length-input.length);
+}
+render();
+
+pad.onclick=e=>{
+  if(e.target.dataset.k && input.length<PASS.length) input.push(e.target.dataset.k);
+  if(e.target.dataset.d) input.pop();
+  render();
+};
+
+document.getElementById("ok").onclick=()=>{
+  if(input.join("")===PASS){
+    show(2);
+    type();
+  } else {
+    input=[];
+    render();
+  }
+};
+
+/* ===== STAGE 2 ===== */
+function type(){
+  const el=document.getElementById("text");
+  el.textContent="";
+  let i=0;
+  const t=setInterval(()=>{
+    el.textContent+=TEXT[i++];
+    if(i>=TEXT.length){
+      clearInterval(t);
+      setTimeout(()=>{
+        show(3);
+        initScratch();
+      },1500);
+    }
+  },50);
+}
+
+/* ===== STAGE 3 ===== */
+let index=0;
+let scratched=false;
+
+const frame=document.getElementById("frame");
+frame.style.backgroundImage=`url(${IMAGES[0]})`;
+
+function initScratch(){
+  const c=document.getElementById("canvas");
+  const ctx=c.getContext("2d");
+  const r=frame.getBoundingClientRect();
+  c.width=r.width;
+  c.height=r.height;
+
+  ctx.fillStyle="#aaa";
+  ctx.fillRect(0,0,c.width,c.height);
+
+  let count=0,down=false;
+
+  function scratch(x,y){
+    ctx.globalCompositeOperation="destination-out";
+    ctx.beginPath();
+    ctx.arc(x,y,26,0,Math.PI*2);
+    ctx.fill();
+    count++;
+    if(count>140 && !scratched){
+      scratched=true;
+      c.remove(); // 🔥 QUAN TRỌNG
+      startSlide();
+    }
+  }
+
+  c.onmousedown=e=>{down=true; scratch(e.offsetX,e.offsetY);}
+  c.onmousemove=e=>down && scratch(e.offsetX,e.offsetY);
+  window.onmouseup=()=>down=false;
+}
+
+function startSlide(){
+  setInterval(()=>{
+    index=(index+1)%IMAGES.length;
+    frame.style.backgroundImage=`url(${IMAGES[index]})`;
+  },2000);
+}
+</script>
+</body>
+</html>
